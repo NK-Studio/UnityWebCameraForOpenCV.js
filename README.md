@@ -6,3 +6,4 @@ Unity 6.0
 OpenCV.js 
 
 # 미리 보기
+![image](https://github.com/user-attachments/assets/9138cc06-be72-4506-a515-ea5c26ae6d1c)
