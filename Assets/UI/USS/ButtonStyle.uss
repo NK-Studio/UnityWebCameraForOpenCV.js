@@ -1,0 +1,26 @@
+.button {
+    width: 243px;
+    height: 113px;
+    -unity-font-definition: url("project://database/Assets/UI/Fonts/FontAsset/Pretendard.asset?fileID=11400000&guid=5d26a34224c6e4edaabdc6fea469d802&type=2#Pretendard");
+    color: rgb(0, 0, 0);
+    font-size: 42px;
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    border-bottom-right-radius: 28px;
+    border-bottom-left-radius: 28px;
+    background-color: rgb(212, 212, 212);
+}
+
+.button:hover {
+    background-color: rgb(200, 200, 200);
+    transition-property: background-color;
+    transition-duration: 0.15s;
+    transition-timing-function: ease-out;
+}
+
+.button:active {
+    background-color: rgb(168, 168, 168);
+    transition-property: background-color;
+    transition-duration: 0.15s;
+    transition-timing-function: ease-out;
+}
