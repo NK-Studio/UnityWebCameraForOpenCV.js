@@ -133,7 +133,7 @@ class Camera {
         if (this.VIDEO) {
             this.VIDEO.play().catch(e => console.error("ARCamera: Error resuming video play.", e));
         }
-        console.log("ARCamera: Unpaused.");
+        console.log("Camera: Unpaused.");
     }
 
     /**
@@ -157,11 +157,11 @@ class Camera {
                         this.setFrameSize(this[key]);
                     }
                 } else if (!Object.prototype.hasOwnProperty.call(this, key)) {
-                    console.warn(`카메라: 알 수 없는 속성 '${key}' 설정 시도`);
+                    console.warn(`Camera: 알 수 없는 속성 '${key}' 설정 시도`);
                 }
             });
         } catch (error) {
-            console.error("카메라: 설정 JSON 구문 분석 실패", error, settingsJson);
+            console.error("Camera: 설정 JSON 구문 분석 실패", error, settingsJson);
         }
     }
 
@@ -221,8 +221,8 @@ class Camera {
     async startWebCam(videoElement) {
         this.VIDEO = videoElement;
         if (!videoElement.srcObject){
-            console.error("Camera Error: Video element has no srcObject. Was requestWebcam successful?");
-            return Promise.reject("Video element has no srcObject.");
+            console.error("카메라 오류: 비디오 요소에 srcObject가 없습니다. 요청웹캠이 성공했나요?");
+            return Promise.reject("비디오 요소에 srcObject가 없습니다.");
         }
 
         try {
@@ -235,12 +235,12 @@ class Camera {
 
             // 검증
             if (!this.videoCapture) {
-                const errorMsg = 'ARCAMERA 오류 : Videocapture 캔버스는 NULL입니다. 초기화에 실패했을 수 있습니다.';
+                const errorMsg = 'CAMERA 오류 : Videocapture 캔버스는 NULL입니다. 초기화에 실패했을 수 있습니다.';
                 console.error(errorMsg);
                 return Promise.reject(errorMsg);
             }
             if (!this.unityCanvas) {
-                const errorMsg = 'Arcamera 오류 : UnityCanvas는 NULL입니다. 시공 중에 올바르게 제공되었는지 확인하십시오.';
+                const errorMsg = 'Camera 오류 : UnityCanvas는 NULL입니다. 시공 중에 올바르게 제공되었는지 확인하십시오.';
                 console.error(errorMsg);
                 return Promise.reject(errorMsg);
             }
@@ -437,10 +437,7 @@ class Camera {
         if (captureCanvas.width !== newWidth || captureCanvas.height !== newHeight) {
             captureCanvas.width = newWidth;
             captureCanvas.height = newHeight;
-            console.log(`ARCamera: Capture canvas resized to ${newWidth}x${newHeight}`);
-
-            // 추적자에게 캡처 치수의 변경 사항에 대해 알립니다
-            // this.#notifyTrackersCameraDims(newWidth, newHeight);
+            console.log(`Camera: Capture canvas resized to ${newWidth}x${newHeight}`);
         }
     }
 
@@ -452,7 +449,7 @@ class Camera {
     setFramerate(newFramerate) {
         if (newFramerate > 0 && this.FRAMERATE !== newFramerate) {
             this.FRAMERATE = newFramerate;
-            console.log(`카메라: 프레임 속도가 ${newFramerate}로 설정되었습니다.`);
+            console.log(`Camera: 프레임 속도가 ${newFramerate}로 설정되었습니다.`);
 
             // 카메라가 실행 중인 경우 인터벌 타이머를 다시 시작합니다.
             clearInterval(this.#updateIntervalId);
@@ -479,18 +476,7 @@ class Camera {
             return;
         }
 
-        console.log("Arcamera : 크기 조정 시작 ...");
-
-        // 리사이즈가 시작되었음을 트래커에 알립니다.
-        // this.SUBSCRIBED_TRACKERS.forEach(tracker => {
-        //     if (tracker && typeof tracker.onStartResize === 'function') {
-        //         try {
-        //             tracker.onStartResize();
-        //         } catch (e) {
-        //             console.error("Arcamera : 추적기의 오류 .Startresize :", e);
-        //         }
-        //     }
-        // });
+        console.log("Camera : 크기 조정 시작 ...");
 
         // Fade out canvases
         this.unityCanvas.style.opacity = '0';
@@ -502,19 +488,8 @@ class Camera {
 
         // 실제 크기 조정 논리를 수행하기 위해 타임아웃을 설정합니다.
         this.resizeTimeoutId = setTimeout(() => {
-            console.log("카메라: 지연된 resizeCanvas() 실행 중.");
+            console.log("Camera: 지연된 resizeCanvas() 실행 중.");
             this.resizeCanvas(); // 실제 크기 조정 논리를 수행합니다.
-
-            // Notify trackers that resize has finished
-            // this.SUBSCRIBED_TRACKERS.forEach(tracker => {
-            //     if (tracker && typeof tracker.onFinishedResize === 'function') {
-            //         try {
-            //             tracker.onFinishedResize();
-            //         } catch (e) {
-            //             console.error("ARCamera: Error in tracker.onFinishedResize:", e);
-            //         }
-            //     }
-            // });
 
             // --- Fade In Animation ---
             const fadeDuration = 300; // Shorter fade duration
@@ -543,7 +518,7 @@ class Camera {
                     if (this.videoDisplayCanvas && this.videoDisplayCanvas !== this.unityCanvas) {
                         this.videoDisplayCanvas.style.opacity = '';
                     }
-                    console.log("카메라: 리사이즈 페이드 인 완료.");
+                    console.log("Camera: 리사이즈 페이드 인 완료.");
                 }
             }, fadeStepDuration);
 
@@ -564,7 +539,7 @@ class Camera {
         const videoDisplayCanvas = this.videoDisplayCanvas;
 
         if (!videoElement || videoElement.videoWidth <= 0 || videoElement.videoHeight <= 0) {
-            console.warn("카메라 : ResizeCanvas 건너 뛰기 - 비디오가 준비되지 않았거나 잘못된 크기가 있습니다.");
+            console.warn("Camera : ResizeCanvas 건너 뛰기 - 비디오가 준비되지 않았거나 잘못된 크기가 있습니다.");
             return;
         }
 
@@ -605,7 +580,7 @@ class Camera {
             window.unityInstance.SendMessage('ARCamera', 'Resize', `${videoElement.videoWidth},${videoElement.videoHeight}`);
         }
 
-        console.log(`카메라: resizeCanvas 완료. 창: ${windowW}x${windowH}, 캡처: ${captureCanvas?.width}x${captureCanvas?.height}`);
+        console.log(`Camera: resizeCanvas 완료. 창: ${windowW}x${windowH}, 캡처: ${captureCanvas?.width}x${captureCanvas?.height}`);
     }
 
     /**
