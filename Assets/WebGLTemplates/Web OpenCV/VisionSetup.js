@@ -13,6 +13,4 @@ var initialize = async () => {
         console.error("트래커 초기화 실패: " + error);
         return Promise.reject(error);
     }
-
-    await window.Camera.requestWebcam();
 };

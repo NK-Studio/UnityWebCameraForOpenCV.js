@@ -70,7 +70,7 @@ class OpenCVLoader {
     }
 
     /**
-     * 초기화 작업을 수행합니다. 파라미터 설정, 특징점 검출기 생성 등을 수행합니다.
+     * 이미지 트래커를 초기화합니다. 파라미터 설정, 특징점 검출기 생성 등을 수행합니다.
      * @returns {Promise<void>} 초기화가 완료되면 resolve되는 Promise.
      */
     async initialize() {

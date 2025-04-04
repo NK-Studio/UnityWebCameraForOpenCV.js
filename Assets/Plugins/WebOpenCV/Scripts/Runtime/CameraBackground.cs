@@ -5,8 +5,9 @@ using JetBrains.Annotations;
 using UnityEngine.Events;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using NK.OpenCV;
 
-namespace NK.OpenCV
+namespace NK.Webcam
 {
     public enum CameraOrientation
     {
@@ -17,39 +18,6 @@ namespace NK.OpenCV
     [RequireComponent(typeof(Camera))]
     public class CameraBackground : MonoBehaviour
     {
-        [DllImport("__Internal")]
-        private static extern void SetWebGLARCameraSettings(string settings);
-
-        [DllImport("__Internal")]
-        private static extern void WebGLStartCamera();
-
-        [DllImport("__Internal")]
-        private static extern void WebGLStopCamera();
-
-        [DllImport("__Internal")]
-        private static extern bool WebGLIsCameraStarted();
-
-        [DllImport("__Internal")]
-        private static extern void WebGLPauseCamera();
-
-        [DllImport("__Internal")]
-        private static extern void WebGLUnpauseCamera();
-
-        [DllImport("__Internal")]
-        private static extern IntPtr WebGLGetVideoDimensions();
-
-        [DllImport("__Internal")]
-        private static extern void WebGLFlipCamera();
-
-        [DllImport("__Internal")]
-        private static extern bool WebGLIsCameraFlipped();
-
-        [DllImport("__Internal")]
-        private static extern void WebGLFreeMemory(IntPtr ptr); // 메모리 해제 함수 임포트
-
-        [DllImport("__Internal")]
-        private static extern bool IsWebcamPermissionGranted();
-
         [Tooltip("오브젝트가 활성화/비활성화될때 카메라를 일시정지/재개합니다.")] [SerializeField]
         private bool unpausePauseOnEnableDisable;
 
@@ -85,12 +53,11 @@ namespace NK.OpenCV
         {
             try
             {
-                IsFlip = WebGLIsCameraFlipped();
+                IsFlip = CameraUtility.IsCameraFlipped();
 
                 OnCameraOrientationChanged?.Invoke(Screen.height > Screen.width
                     ? CameraOrientation.Portrait
                     : CameraOrientation.Landscape);
-
 
                 // 카메라의 ClearFlags를 Depth로 설정합니다.
                 if (_mainCamera != null)
@@ -147,7 +114,7 @@ namespace NK.OpenCV
             json.Append("\"RESIZE_DELAY\":").Append(resizeDelay);
             json.Append("}");
 
-            SetWebGLARCameraSettings(json.ToString());
+            CameraUtility.SetARCameraSettings(json.ToString());
         }
 
         /// <summary>
@@ -155,13 +122,13 @@ namespace NK.OpenCV
         /// </summary>
         private void StartCamera()
         {
-            if (WebGLIsCameraStarted())
+            if (CameraUtility.IsCameraStarted())
             {
                 SetVideoDimensions();
             }
             else
             {
-                WebGLStartCamera();
+                CameraUtility.StartCamera();
             }
         }
 
@@ -173,7 +140,7 @@ namespace NK.OpenCV
             if (_paused)
                 return;
 
-            WebGLPauseCamera();
+            CameraUtility.PauseCamera();
 
             _paused = true;
         }
@@ -186,7 +153,7 @@ namespace NK.OpenCV
             if (!_paused)
                 return;
 
-            WebGLUnpauseCamera();
+            CameraUtility.UnpauseCamera();
 
             _paused = false;
         }
@@ -213,7 +180,7 @@ namespace NK.OpenCV
             IntPtr bufferPtr = IntPtr.Zero;
             try
             {
-                bufferPtr = WebGLGetVideoDimensions();
+                bufferPtr =CameraUtility.GetVideoDimensions();
                 if (bufferPtr == IntPtr.Zero)
                 {
                     Debug.LogError("WebGLGetVideoDims returned a null pointer. Allocation might have failed.");
@@ -234,7 +201,7 @@ namespace NK.OpenCV
                 // C#에서 사용이 끝난 후 반드시 메모리 해제!
                 if (bufferPtr != IntPtr.Zero)
                 {
-                    WebGLFreeMemory(bufferPtr);
+                    CameraUtility.FreeMemory(bufferPtr);
                 }
             }
         }
@@ -252,7 +219,7 @@ namespace NK.OpenCV
         {
             if (pauseOnApplicationLostFocus)
             {
-                if (WebGLIsCameraStarted())
+                if (CameraUtility.IsCameraStarted())
                 {
                     if (hasFocus)
                         UnpauseCamera();
@@ -266,7 +233,7 @@ namespace NK.OpenCV
         {
             if (pauseOnApplicationLostFocus)
             {
-                if (WebGLIsCameraStarted())
+                if (CameraUtility.IsCameraStarted())
                 {
                     if (!pauseStatus)
                         UnpauseCamera();
@@ -281,7 +248,7 @@ namespace NK.OpenCV
         /// </summary>
         public void FlipCamera()
         {
-            WebGLFlipCamera();
+            CameraUtility.FlipCamera();
         }
 
         /// <summary>
@@ -340,18 +307,6 @@ namespace NK.OpenCV
         {
             Orientation = message == "PORTRAIT" ? CameraOrientation.Portrait : CameraOrientation.Landscape;
             OnCameraOrientationChanged?.Invoke(Orientation);
-        }
-
-        /// <summary>
-        /// 웹캠 권한이 부여될 때까지 대기합니다.
-        /// </summary>
-        public static async Awaitable WaitWebcamPermissionGranted()
-        {
-            while (!IsWebcamPermissionGranted())
-            {
-                // 다음 프레임까지 기다립니다.
-                await Awaitable.NextFrameAsync();
-            }
         }
     }
 }

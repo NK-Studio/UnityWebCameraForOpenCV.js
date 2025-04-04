@@ -1,13 +1,5 @@
 window.unityFacingMode = "environment";
-
-window.WEBCAM_SETTINGS = {
-    video: {
-        facingMode: window.unityFacingMode,
-        width: {ideal: 640},
-        height: {ideal: 480},
-    },
-    audio: false
-};
+window.webcamStream = null;
 
 class Camera {
     #updateIntervalId; // Timer ID for the main update loop
@@ -28,6 +20,10 @@ class Camera {
     lastOrientation; // 마지막으로 알려진 장치 방향('portrait' 또는 'landscape')을 저장합니다.
     FOV; // 카메라 시야각(FOV)을 도 단위로 계산
     isWebcamPermissionGranted; // 웹캠 권한이 부여되었는지 여부를 나타내는 플래그
+
+    width = 640; // 비디오 캔버스의 너비
+    height = 480; // 비디오 캔버스의 높이
+    selectedDeviceId = ''; // 선택된 비디오 장치 ID
 
     // 크기 조정 처리를 위한 내부 상태
     resizeTimeoutId;
@@ -70,6 +66,9 @@ class Camera {
         this.isCameraStarted = false;
         this.cameraPaused = false;
         this.isWebcamPermissionGranted = false;
+        this.width = 640;
+        this.height = 480;
+        this.selectedDeviceId = '';
 
         // --- 숨김 상태 캡쳐 캔버스 생성 ---
         this.videoCapture = document.createElement("canvas");
@@ -133,7 +132,6 @@ class Camera {
         if (this.VIDEO) {
             this.VIDEO.play().catch(e => console.error("ARCamera: Error resuming video play.", e));
         }
-        console.log("Camera: Unpaused.");
     }
 
     /**
@@ -166,6 +164,23 @@ class Camera {
     }
 
     /**
+     * 웹캠 설정을 반환합니다.
+     * @returns {{video: {facingMode: string, deviceId: string, width: {ideal: number}, height: {ideal: number}, frameRate: {ideal: number}}, audio: boolean}}
+     */
+    getWebcamSettings() {
+        return {
+            video: {
+                facingMode: window.unityFacingMode,
+                deviceId: this.selectedDeviceId,
+                width: {ideal: this.width},
+                height: {ideal: this.height},
+                frameRate: {ideal: this.FRAMERATE}
+            },
+            audio: false
+        };
+    }
+
+    /**
      * 사용자의 웹캠 접근을 요청합니다.
      * 권한을 기다리는 동안 전역 플래그 `window.requestingForPermissions`를 true로 설정합니다.
      * 권한이 부여되면 `window.webcamStream`에 미디어 스트림을 설정합니다.
@@ -179,27 +194,23 @@ class Camera {
             let permissionGranted = false;
             if (navigator.permissions && typeof navigator.permissions.query === 'function') {
                 try {
-                    const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+                    const permissionStatus = await navigator.permissions.query({name: 'camera'});
                     permissionGranted = permissionStatus.state === 'granted';
                     permissionStatus.onchange = () => { // 권한 변경 감지
                         location.reload();
                     }
-                } catch(queryError){
-                    console.warn ( "카메라 권한 상태를 쿼리 할 수 없음 :", queryError);
+                } catch (queryError) {
+                    console.warn("카메라 권한 상태를 쿼리 할 수 없음 :", queryError);
                     // 쿼리 실패 시에도 getUserMedia 시도
                 }
             }
 
             if (permissionGranted) {
-                console.log ( "웹캠 허가가 이미 부여되었습니다.");
-                // 바로 스트림 가져오기 시도
-                window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
+                window.webcamStream = await navigator.mediaDevices.getUserMedia(this.getWebcamSettings());
                 this.isWebcamPermissionGranted = true;
             } else {
-                console.log ( "웹캠 허가 요청 ...");
-                window.webcamStream = await navigator.mediaDevices.getUserMedia(window.WEBCAM_SETTINGS);
+                window.webcamStream = await navigator.mediaDevices.getUserMedia(this.getWebcamSettings());
                 this.isWebcamPermissionGranted = true;
-                console.log ( "요청시 부여 된 웹캠 액세스");
             }
             window.requestingForPermissions = false;
 
@@ -207,9 +218,87 @@ class Camera {
             console.error("Error accessing webcam:", err.name, err.message);
             window.requestingForPermissions = false;
             this.isWebcamPermissionGranted = false; // 권한이 거부된 경우 false로 설정
-            // 사용자에게 오류 메시지 표시
-            alert('카메라 권한이 없습니다.');
+
             throw err; // 오류를 다시 던져서 호출자(initializeMain)가 알 수 있도록 함
+        }
+    }
+
+    /**
+     * Unity에서 호출하여 웹캠 권한을 요청합니다.
+     * @param {string} gameObjectName - Unity 게임 오브젝트 이름.
+     * @param {string} successCallback - 권한 요청 성공 시 호출할 콜백 메서드 이름.
+     * @param {string} failCallback - 권한 요청 실패 시 호출할 콜백 메서드 이름.
+     */
+    requestWebcamPermissions(gameObjectName, successCallback, failCallback) {
+        this.requestWebcam().then(() => {
+            window.unityInstance.SendMessage(gameObjectName, successCallback);
+        }).catch(error => {
+            window.unityInstance.SendMessage(gameObjectName, failCallback);
+        });
+    }
+
+    /**
+     * 웹캠 장치 목록을 로드합니다.
+     * @returns {Promise<{devices: *[]}>} 비디오 입력 장치 목록을 포함하는 약속.
+     * @constructor
+     */
+    async LoadWebcamDevice() {
+
+        // 먼저 권한을 요청해야 장치 레이블을 제대로 얻을 수 있는 경우가 많습니다.
+        // 임시로 기본 스트림을 요청하여 권한 팝업을 띄웁니다.
+        try {
+            const tempStream = await navigator.mediaDevices.getUserMedia({video: true, audio: false});
+            tempStream.getTracks().forEach(track => track.stop());
+        } catch (permError) {
+            // 사용자가 권한을 거부해도 장치 목록은 (레이블 없이) 가져올 수 있습니다.
+            console.warn("초기 권한 요청 실패:", permError);
+        }
+
+        let camDevices = [];
+        // let backCams = [];
+        let devices = await navigator.mediaDevices.enumerateDevices();
+
+        // Show all devices
+        devices.forEach(mediaDevice => {
+            if (mediaDevice.kind === 'videoinput') {
+
+                if (window.unityFacingMode === 'environment' && !mediaDevice.label.includes('facing front')) {
+                    //back cam only
+                    camDevices.push({
+                        deviceId: mediaDevice.deviceId,
+                        label: mediaDevice.label
+                    });
+                } else if (window.unityFacingMode === 'user' && mediaDevice.label.includes('facing front')) {
+                    //front cam only
+                    camDevices.push({
+                        deviceId: mediaDevice.deviceId,
+                        label: mediaDevice.label
+                    });
+                } else {
+                    //back and front
+                    camDevices.push({
+                        deviceId: mediaDevice.deviceId,
+                        label: mediaDevice.label
+                    });
+                }
+            }
+        });
+        return camDevices;
+    }
+
+    /**
+     /**
+     * 웹캠 장치 목록을 요청합니다.
+     * @param {string} gameObjectName - Unity 게임 오브젝트 이름.
+     * @param {string} callbackMethodName - 콜백 메서드 이름.
+     */
+    requestWebcamList(gameObjectName, callbackMethodName) {
+        try {
+            this.LoadWebcamDevice().then(devices => {
+                window.unityInstance.SendMessage(gameObjectName, callbackMethodName, JSON.stringify(devices));
+            });
+        } catch (error) {
+            console.error("Unity 성공 실패");
         }
     }
 
@@ -220,7 +309,7 @@ class Camera {
      */
     async startWebCam(videoElement) {
         this.VIDEO = videoElement;
-        if (!videoElement.srcObject){
+        if (!videoElement.srcObject) {
             console.error("카메라 오류: 비디오 요소에 srcObject가 없습니다. 요청웹캠이 성공했나요?");
             return Promise.reject("비디오 요소에 srcObject가 없습니다.");
         }
@@ -235,7 +324,7 @@ class Camera {
 
             // 검증
             if (!this.videoCapture) {
-                const errorMsg = 'CAMERA 오류 : Videocapture 캔버스는 NULL입니다. 초기화에 실패했을 수 있습니다.';
+                const errorMsg = 'Camera 오류 : Videocapture 캔버스는 NULL입니다. 초기화에 실패했을 수 있습니다.';
                 console.error(errorMsg);
                 return Promise.reject(errorMsg);
             }
@@ -248,7 +337,6 @@ class Camera {
             // 비디오 메타데이터 로드 및 크기 확인 대기 (oncanplay에서 처리)
             return new Promise((resolve) => {
                 this.VIDEO.oncanplay = () => {
-                    console.log("Camera: Video ready (oncanplay). Starting loop.");
                     // 초기 리사이즈 수행
                     this.resizeCanvas();
 
@@ -261,11 +349,10 @@ class Camera {
                     this.isCameraStarted = true;
                     this.cameraPaused = false;
 
-                    console.log("Camera: Webcam started successfully via startWebCam.");
                     resolve(); // 시작 성공 Promise 해결
                 };
                 // 이미 oncanplay 상태일 수 있으므로 즉시 체크
-                if(this.VIDEO.readyState >= this.VIDEO.HAVE_FUTURE_DATA) {
+                if (this.VIDEO.readyState >= this.VIDEO.HAVE_FUTURE_DATA) {
                     if (!this.isCameraStarted) { // 아직 시작 안됐으면
                         this.VIDEO.oncanplay(); // 수동 호출
                     }
@@ -279,19 +366,16 @@ class Camera {
     }
 
     /**
-     * 트리거 웹캠을 요청합니다.
+     * 웹캠을 트리거합니다.
+     * 사용자가 권한을 부여할 때까지 대기하고, 웹캠 스트림을 설정하고, Unity에 성공 또는 실패 메시지를 보냅니다.
      * @returns {Promise<void>}
      * @constructor
      */
     async triggerWebcam() {
-        console.log("트리거 웹캠");
 
         while (window.requestingForPermissions) {
-            console.log("허가를 기다리고 있습니다");
             await new Promise(resolve => setTimeout(resolve, 100));
         }
-
-        console.log("허가를 받았습니다");
 
         if (window.webcamStream) {
             const video = document.querySelector("#webcam-video");
@@ -299,16 +383,13 @@ class Camera {
 
             try {
                 await window.Camera.startWebCam(video);
-                console.log("웹캠 시작 성공");
                 window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamSuccess');
             } catch (error) {
-                console.error("웹캠 시작 오류", error);
                 window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
             }
 
             return Promise.resolve();
         } else {
-            console.error("웹캠 스트림이 없습니다");
             window.unityInstance.SendMessage('ARCamera', 'OnStartWebcamFail');
             return Promise.reject("웹캠 스트림이 없습니다");
         }
@@ -472,7 +553,7 @@ class Camera {
 
         // // 필수 요소에 대한 기본 확인
         if (!this.unityCanvas || !this.videoDisplayCanvas) {
-            console.warn("ARCamera: 리사이즈 건너뛰기, 캔버스 요소가 없습니다.");
+            console.warn("Camera: 리사이즈 건너뛰기, 캔버스 요소가 없습니다.");
             return;
         }
 
@@ -623,7 +704,7 @@ class Camera {
         // --- 방향 업데이트 ---
         const currentOrientation = window.matchMedia('(orientation: portrait)').matches ? 'PORTRAIT' : 'LANDSCAPE';
         if (this.lastOrientation !== currentOrientation) {
-            console.log(`카메라 : 방향이 변경되었습니다 -> ${currentOrientation}`);
+            console.log(`Camera : 방향이 변경되었습니다 -> ${currentOrientation}`);
             this.lastOrientation = currentOrientation;
 
             // 방향 변경을 Unity에 알립니다.
@@ -649,7 +730,7 @@ class Camera {
                 return null;
             }
         } catch (e) {
-            console.error("카메라 : 카메라 텍스처를 얻는 오류:", e);
+            console.error("Camera : 카메라 텍스처를 얻는 오류:", e);
             return null;
         }
     }
@@ -658,8 +739,7 @@ class Camera {
      * 비디오 피드의 원본 크기를 반환합니다.
      * @returns {string | null} 사용할 수 없는 경우 비디오의 크기를 "width,height" 형식의 문자열 또는 null로 반환합니다.
      */
-    getVideoDimensions()
-    {
+    getVideoDimensions() {
         const videoElement = this.VIDEO;
         if (videoElement && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
             return `${videoElement.videoWidth},${videoElement.videoHeight}`;

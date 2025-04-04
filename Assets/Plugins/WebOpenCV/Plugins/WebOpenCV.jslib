@@ -22,6 +22,15 @@ var LibraryOpenCVUnity = {
     {
         window.Camera.setARCameraSettings(UTF8ToString(settings));
     },
+    WebGLSetDeviceId: function(deviceId){
+        window.Camera.selectedDeviceId = UTF8ToString(deviceId);
+    },
+    WebGLRequestWebcamList: function(gameObjectName, callbackFunctionName){
+        window.Camera.requestWebcamList(UTF8ToString(gameObjectName), UTF8ToString(callbackFunctionName));
+    },
+    WebGLRequestCameraPermission: function(gameObjectName, successCallback, failMethodName){
+        window.Camera.requestWebcamPermissions(UTF8ToString(gameObjectName), UTF8ToString(successCallback), UTF8ToString(failMethodName));
+    },
     WebGLStartCamera: function()
     {
         window.Camera.triggerWebcam();
